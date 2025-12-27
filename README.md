@@ -98,7 +98,7 @@ The application follows a service-oriented architecture with separate frontend a
     > [!WARNING]
     > **BERTScore Usage**: The first time you run BERTScore, the application will download a pre-trained model (approx. 400MB+). This requires an active internet connection and will take some extra time. Subsequent runs will use the cached model and be faster.
 
-    ### Evaluation Metrics Rationale
+### Evaluation Metrics Rationale
 The evaluation combines lexical overlap metrics (ROUGE-1, ROUGE-2, ROUGE-L) with a semantic similarity metric (BERTScore). ROUGE scores quantify surface-level overlap between generated and reference summaries, while BERTScore captures semantic similarity using contextualized token embeddings from a pretrained Transformer model. This combination allows both syntactic fidelity and semantic adequacy to be assessed.
 
 
