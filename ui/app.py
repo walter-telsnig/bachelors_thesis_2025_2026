@@ -56,8 +56,8 @@ if logo_base64:
             .logo-img {{
                 position: fixed;
                 top: 2.5rem;
-                right: 4rem;
-                width: 80px;
+                right: 6rem;
+                width: 300px;
                 z-index: 99999;
                 pointer-events: none;
             }}
@@ -78,7 +78,7 @@ if 'classic_summary' not in st.session_state:
     st.session_state['classic_summary'] = ""
 
 # --- Tabs Layout ---
-tab1, tab2, tab3, tab4 = st.tabs(["Document Input", "Abstractive (Gemini)", "Extractive (Classic)", "Comparative Analysis"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Document Input", "Abstractive (Gemini)", "Extractive (Classic)", "Comparative Analysis", "Batch Evaluation"])
 
 # ==========================================
 # Tab 1: Document Input & Preprocessing
@@ -566,3 +566,194 @@ with tab4:
                 file_name=file_name,
                 mime="text/plain"
             )
+
+# ==========================================
+# Tab 5: Batch Evaluation
+# ==========================================
+with tab5:
+    st.header("Batch Summarization & Evaluation")
+    
+    st.info("Run extractive summarization on a folder of texts and compare them against reference summaries.")
+    
+    # Helper to find all subdirectories recursively
+    def get_all_subdirs(root_dir):
+        subdirs = []
+        if os.path.exists(root_dir):
+            # Add root itself
+            subdirs.append(root_dir)
+            for root, dirs, files in os.walk(root_dir):
+                for d in dirs:
+                    # Append absolute path
+                    subdirs.append(os.path.join(root, d).replace("\\", "/"))
+        return sorted(subdirs)
+
+    docs_root = "/app/docs"
+    available_dirs = get_all_subdirs(docs_root)
+    
+    col_b1, col_b2 = st.columns(2)
+    with col_b1:
+        # source_dir = st.text_input("Source Directory", value="/app/docs") 
+        if available_dirs:
+            source_dir = st.selectbox("Source Directory", available_dirs, index=0, key="batch_source_dir")
+        else:
+            st.error(f"No directories found in {docs_root}")
+            source_dir = docs_root # Fallback
+
+    with col_b2:
+        # ref_dir = st.text_input("Reference Directory", value="/app/docs")
+        if available_dirs:
+            ref_dir = st.selectbox("Reference Directory", available_dirs, index=0, key="batch_ref_dir")
+        else:
+            ref_dir = docs_root
+
+    col_b3, col_b4 = st.columns(2)
+    with col_b3:
+        batch_algo = st.selectbox("Algorithm (Extractive)", ["TF-IDF", "Luhn", "TextRank", "LSA", "LexRank"], index=0, key="batch_algo")
+    with col_b4:
+        batch_len = st.number_input("Summary Length (Sentences)", min_value=1, max_value=20, value=5, step=1, key="batch_len")
+
+    if st.button("Run Batch Evaluation (Extractive + Gemini)"):
+        if not os.path.exists(source_dir) or not os.path.exists(ref_dir):
+            st.error("Invalid directories provided.")
+        else:
+            files_processed = []
+            
+            # 1. Scan Source Files
+            source_files = [f for f in os.listdir(source_dir) if f.endswith(".txt") and not f.endswith("_REF.txt")]
+            
+            if not source_files:
+                st.warning("No source files found (excluding *_REF.txt).")
+            else:
+                 # Initialize Scorer
+                scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+                
+                # Progress Bar
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                results_data = []
+
+                for i, filename in enumerate(source_files):
+                    status_text.text(f"Processing {filename}...")
+                    
+                    # Read Source
+                    try:
+                        with open(os.path.join(source_dir, filename), 'r', encoding='utf-8') as f:
+                            source_text = f.read()
+                    except Exception as e:
+                        st.error(f"Error reading {filename}: {e}")
+                        continue
+
+                    # Find Reference
+                    ref_filename = filename.replace(".txt", "_REF.txt")
+                    ref_path_check = os.path.join(ref_dir, ref_filename)
+                    
+                    if not os.path.exists(ref_path_check):
+                        # Try exact match if filename already contains _REF (unlikely given filter) or typical naming
+                        # Fallback: check if exact filename exists in ref dir (if user separated folders)
+                        if os.path.exists(os.path.join(ref_dir, filename)):
+                             ref_path_check = os.path.join(ref_dir, filename)
+                        else:
+                            st.warning(f"No reference found for {filename} (Matched: {ref_filename}) - Skipping evaluation.")
+                            continue
+                    
+                    try:
+                        with open(ref_path_check, 'r', encoding='utf-8') as f:
+                            reference_text = f.read()
+                    except Exception as e:
+                         st.error(f"Error reading ref {ref_filename}: {e}")
+                         continue
+                            
+                    # Call Extractive API
+                    extractive_summary = ""
+                    gemini_summary = ""
+                    
+                    # 1. Extractive
+                    try:
+                        payload = {
+                            "text_content": source_text,
+                            "algorithm": batch_algo,
+                            "sentences_count": batch_len
+                        }
+                        response = requests.post(f"{API_URL}/summarize/classic", json=payload)
+                        if response.status_code == 200:
+                            extractive_summary = response.json().get("summary", "")
+                        else:
+                            st.error(f"Extractive API Error for {filename}: {response.text}")
+                    except Exception as e:
+                        st.error(f"Extractive Processing Error {filename}: {e}")
+
+                    # 2. Gemini (Abstractive)
+                    try:
+                        gemini_payload = {
+                            "text_content": source_text,
+                            "length": f"{batch_len} sentences",
+                            "purpose": "General Summary",
+                            "temperature": 0.7
+                        }
+                        gemini_response = requests.post(f"{API_URL}/summarize/gemini", json=gemini_payload)
+                        if gemini_response.status_code == 200:
+                            gemini_summary = gemini_response.json().get("summary", "")
+                        else:
+                             st.error(f"Gemini API Error for {filename}: {gemini_response.text}")
+                    except Exception as e:
+                         st.error(f"Gemini Processing Error {filename}: {e}")
+
+                    # Calculate Scores
+                    result_row = {"File": filename}
+                    
+                    # Extractive Scores
+                    if extractive_summary:
+                        r_scores_ex = scorer.score(reference_text, extractive_summary)
+                        P_ex, R_ex, F1_ex = score([extractive_summary], [reference_text], lang="en", verbose=False)
+                        
+                        result_row["Extractive R1"] = round(r_scores_ex['rouge1'].fmeasure, 4)
+                        result_row["Extractive R2"] = round(r_scores_ex['rouge2'].fmeasure, 4)
+                        result_row["Extractive RL"] = round(r_scores_ex['rougeL'].fmeasure, 4)
+                        result_row["Extractive BERT"] = round(F1_ex.item(), 4)
+                    else:
+                         result_row["Extractive R1"] = 0.0
+
+                    # Gemini Scores
+                    if gemini_summary:
+                        r_scores_gem = scorer.score(reference_text, gemini_summary)
+                        P_gem, R_gem, F1_gem = score([gemini_summary], [reference_text], lang="en", verbose=False)
+                        
+                        result_row["Gemini R1"] = round(r_scores_gem['rouge1'].fmeasure, 4)
+                        result_row["Gemini R2"] = round(r_scores_gem['rouge2'].fmeasure, 4)
+                        result_row["Gemini RL"] = round(r_scores_gem['rougeL'].fmeasure, 4)
+                        result_row["Gemini BERT"] = round(F1_gem.item(), 4)
+                    else:
+                        result_row["Gemini R1"] = 0.0
+
+                    results_data.append(result_row)
+
+                    # Update Progress
+                    progress_bar.progress((i + 1) / len(source_files))
+                
+                status_text.text("Batch Processing Complete!")
+                
+                if results_data:
+                    df_results = pd.DataFrame(results_data)
+                    
+                    st.divider()
+                    st.subheader("Aggregated Metrics")
+                    
+                    # Calculate Averages
+                    avg_metrics = df_results.mean(numeric_only=True)
+                    st.dataframe(avg_metrics.to_frame(name="Average Score").T)
+                    
+                    st.subheader("Detailed Results")
+                    st.dataframe(df_results)
+                    
+                    # Download DataFrame
+                    csv = df_results.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "Download Batch Results (.csv)",
+                        csv,
+                        "batch_results.csv",
+                        "text/csv",
+                        key='batch-download-csv'
+                    )
+                else:
+                    st.warning("No files were successfully processed.")

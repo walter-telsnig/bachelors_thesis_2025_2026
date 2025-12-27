@@ -105,7 +105,7 @@ def summarize_classic():
 
         text_content = data.get('text_content', '')
         algorithm = data.get('algorithm', 'Luhn')
-        sentences_count = int(data.get('sentences_count', 3))
+        sentences_count = int(data.get('sentences_count', 5))
 
         if not text_content:
              return jsonify({"error": "text_content is required"}), 400

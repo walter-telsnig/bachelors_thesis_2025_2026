@@ -5,7 +5,7 @@ This project is developed for a Bachelor's Thesis to compare two distinct approa
 1.  **Abstractive Summarization**: Uses Large Language Models (LLMs), specifically the **Gemini 2.5 Flash** model, to understand the source text and rewrite a summary in its own words, similar to how a human would.
 2.  **Extractive Summarization**: Uses classic Natural Language Processing (NLP) algorithms (Luhn, TextRank, LSA, LexRank, TF-IDF) via the **Sumy** library to score and extract the most significant sentences from the original text without modification.
 
-The application allows users to input text, run both methods with customizable parameters, and side-by-side compare the results using quantitative metrics like **ROUGE-1, ROUGE-2, ROUGE-L** and **BERTScore**.
+The application allows users to input text, run both methods with customizable parameters, and side-by-side compare the results using quantitative metrics like **ROUGE-1, ROUGE-2, ROUGE-L** and **BERTScore**. It also supports **Batch Evaluation** to process entire datasets at once.
 
 ## Architecture Diagram (Textual)
 
@@ -69,9 +69,9 @@ The application follows a microservices architecture containerized with Docker:
 ### Tab 2: Abstractive (Gemini)
 -   **Goal**: Generate a summary that rewritten and condenses meaning.
 -   **Settings**:
-    -   *Length*: Specify constraints (e.g., "50 words", "3 sentences").
-    -   *Purpose*: Guide the model's focus (e.g., "technical details", "historical impact").
-    -   *Temperature*: Adjust creativity (0.0 = deterministic, 1.0 = creative).
+    -   *Length*: Specify constraints (Dropdown: "Short", "Medium", "Long" or Custom "X sentences").
+    -   *Purpose*: Guide the model's focus (Dropdown: "General", "Academic", etc. or Custom).
+    -   *Temperature*: Adjust creativity (0.0 = Blue/Deterministic, 1.0 = Red/Creative).
 -   **Action**: Click "Generate Abstractive Summary".
 
 ### Tab 3: Extractive (Classic)
@@ -79,6 +79,7 @@ The application follows a microservices architecture containerized with Docker:
 -   **Settings**:
     -   *Algorithm*: Choose the math behind sentence scoring (Luhn, TextRank, etc.).
     -   *Sentence Count*: Choose exactly how many sentences to keep.
+-   **Visualization**: View the original text with **highlighted green sentences**, showing exactly which parts were selected by the algorithm.
 -   **Action**: Click "Generate Extractive Summary".
 
 ### Tab 4: Comparative Results & Metrics
@@ -92,9 +93,25 @@ The application follows a microservices architecture containerized with Docker:
         -   **ROUGE-2**: Overlap of bigrams (2-grams).
         -   **ROUGE-L**: Longest Common Subsequence.
         -   **BERTScore**: Semantic similarity using contextual embeddings.
+    -   **Download**: Functionality to save the full report (Source, Summaries, Scores) as a `.txt` file with a timestamp.
     
     > [!WARNING]
     > **BERTScore Usage**: The first time you run BERTScore, the application will download a pre-trained model (approx. 400MB+). This requires an active internet connection and will take some extra time. Subsequent runs will use the cached model and be faster.
+
+### Tab 5: Batch Evaluation
+-   **Goal**: Evaluate algorithms on an entire dataset at once.
+-   **Inputs**:
+    -   *Source Directory*: Select the folder containing input text files (e.g., `docs/cnn_dailymail`).
+    -   *Reference Directory*: Select the folder containing gold standard summaries (`_REF.txt`).
+    -   *Algorithm*: One extractive algorithm to test against Gemini.
+-   **Process**:
+    -   Iterates through every source file.
+    -   Generates **both** an Extractive and an Abstractive (Gemini) summary.
+    -   Compares both against the reference summary.
+-   **Output**:
+    -   Aggregated Average Scores Table.
+    -   Detailed File-by-File Results Table.
+    -   **Download**: Export all results as `.csv`.
 
 ## Implemented Algorithms
 
