@@ -9,7 +9,7 @@ The application allows users to input text, run both methods with customizable p
 
 ## Architecture Diagram (Textual)
 
-The application follows a microservices architecture containerized with Docker:
+The application follows a service-oriented architecture with separate frontend and backend services containerized with Docker:
 
 1.  **User Layer (Frontend)**: 
     -   **Streamlit UI**: A web interface running on port 8501.
@@ -98,6 +98,10 @@ The application follows a microservices architecture containerized with Docker:
     > [!WARNING]
     > **BERTScore Usage**: The first time you run BERTScore, the application will download a pre-trained model (approx. 400MB+). This requires an active internet connection and will take some extra time. Subsequent runs will use the cached model and be faster.
 
+    ### Evaluation Metrics Rationale
+The evaluation combines lexical overlap metrics (ROUGE-1, ROUGE-2, ROUGE-L) with a semantic similarity metric (BERTScore). ROUGE scores quantify surface-level overlap between generated and reference summaries, while BERTScore captures semantic similarity using contextualized token embeddings from a pretrained Transformer model. This combination allows both syntactic fidelity and semantic adequacy to be assessed.
+
+
 ### Tab 5: Batch Evaluation
 -   **Goal**: Evaluate algorithms on an entire dataset at once.
 -   **Inputs**:
@@ -108,6 +112,7 @@ The application follows a microservices architecture containerized with Docker:
     -   Iterates through every source file.
     -   Generates **both** an Extractive and an Abstractive (Gemini) summary.
     -   Compares both against the reference summary.
+-   **Algorithm**: One extractive algorithm selected per batch run. Each batch compares one classic extractive method against the  Gemini-based abstractive summarizer across the entire dataset.
 -   **Output**:
     -   Aggregated Average Scores Table.
     -   Detailed File-by-File Results Table.
@@ -116,7 +121,7 @@ The application follows a microservices architecture containerized with Docker:
 ## Implemented Algorithms
 
 1.  **Gemini 2.5 Flash (Abstractive)**
-    -   A modern Large Language Model (LLM) by Google. It understands context, semantics, and can synthesize information into new sentences.
+    -   A modern Large Language Model (LLM) by Google. It understands context, semantics, and can synthesize information into new sentences. Abstractive summaries generated via Gemini are inherently stochastic due to sampling-based decoding (e.g., temperature). While extractive methods are fully deterministic, repeated runs of the abstractive model with identical parameters may yield slightly different summaries and metric scores. This behavior is expected and is addressed in the thesis through repeated evaluation runs and aggregate analysis where appropriate.
 
 2.  **Luhn (Extractive)**
     -   A heuristic method based on word frequency. Importance is determined by the density of "significant" words (frequent but not stop-words).
