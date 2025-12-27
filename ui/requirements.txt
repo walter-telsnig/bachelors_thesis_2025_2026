@@ -1,0 +1,8 @@
+streamlit
+requests
+rouge-score
+nltk
+scikit-learn
+beautifulsoup4
+bert-score
+torch

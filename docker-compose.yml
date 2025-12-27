@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  summarizer-api:
+    build: ./api
+    container_name: summarizer-api
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    networks:
+      - summarizer-network
+
+  summarizer-ui:
+    build: ./ui
+    container_name: summarizer-ui
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./docs:/app/docs
+    depends_on:
+      - summarizer-api
+    networks:
+      - summarizer-network
+
+networks:
+  summarizer-network:
+    driver: bridge

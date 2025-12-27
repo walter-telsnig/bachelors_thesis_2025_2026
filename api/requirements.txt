@@ -1,0 +1,7 @@
+flask
+google-genai
+sumy
+numpy
+nltk
+python-dotenv
+scikit-learn
