@@ -7,6 +7,7 @@ from bert_score import score
 import torch
 
 import os
+from datetime import datetime
 import base64
 from bs4 import BeautifulSoup
 
@@ -480,7 +481,13 @@ with tab4:
     if ref_input_method == "Select from File" and reference_summary:
          st.text_area("Reference Content", value=reference_summary, height=150, disabled=True)
     
+    if 'show_scores' not in st.session_state:
+        st.session_state['show_scores'] = False
+
     if st.button("Calculate ROUGE Scores"):
+        st.session_state['show_scores'] = True
+        
+    if st.session_state['show_scores']:
         if not reference_summary:
             st.error("Please provide a reference summary.")
         elif not st.session_state['gemini_summary'] and not st.session_state['classic_summary']:
@@ -489,15 +496,21 @@ with tab4:
             # Using rouge_scorer for ROUGE-1, ROUGE-2, and ROUGE-L calculation
             scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
             
-            # Helper to calculate and display scores
-            def display_scores(candidate_summary, reference_summary, model_name):
+            # Results Accumulator
+            results_text = f"--- Original Text ---\n{st.session_state['source_text']}\n\n"
+            
+            # Helper to calculate and return scores string
+            def calculate_and_format_scores(candidate_summary, reference_summary, model_name):
+                output_str = f"--- {model_name} Summary ---\n{candidate_summary}\n\n"
+                output_str += f"--- {model_name} Metrics ---\n"
+                
                 st.markdown(f"### {model_name} Performance")
                 
                 # 1. ROUGE Scores
                 scores = scorer.score(reference_summary, candidate_summary)
                 
-                # Format ROUGE scores for display
                 rouge_data = []
+                output_str += "ROUGE Scores:\n"
                 for metric, result in scores.items():
                     rouge_data.append({
                         "Metric": metric,
@@ -505,8 +518,11 @@ with tab4:
                         "Recall": f"{result.recall:.4f}",
                         "F1-Score": f"{result.fmeasure:.4f}"
                     })
+                    output_str += f"{metric}: P={result.precision:.4f}, R={result.recall:.4f}, F1={result.fmeasure:.4f}\n"
+
                 st.write("**ROUGE Scores:**")
                 st.dataframe(pd.DataFrame(rouge_data))
+                output_str += "\n"
 
                 # 2. BERTScore
                 try:
@@ -520,14 +536,33 @@ with tab4:
                         }]
                         st.write("**BERTScore:**")
                         st.dataframe(pd.DataFrame(bert_data))
+                        output_str += f"BERTScore: P={P.item():.4f}, R={R.item():.4f}, F1={F1.item():.4f}\n\n"
                 except Exception as e:
                     st.error(f"Error calculating BERTScore: {e}")
+                    output_str += f"BERTScore Error: {e}\n\n"
+                
+                return output_str
 
             # Comparison for Gemini
             if st.session_state['gemini_summary']:
-                display_scores(st.session_state['gemini_summary'], reference_summary, "Gemini")
+                gemini_res = calculate_and_format_scores(st.session_state['gemini_summary'], reference_summary, "Gemini")
+                results_text += gemini_res
                 
             # Comparison for Classic
             if st.session_state['classic_summary']:
                 classic_algo = st.session_state.get('classic_algorithm', 'Classic')
-                display_scores(st.session_state['classic_summary'], reference_summary, f"Extractive ({classic_algo})")
+                classic_res = calculate_and_format_scores(st.session_state['classic_summary'], reference_summary, f"Extractive ({classic_algo})")
+                results_text += classic_res
+            
+            st.divider()
+            
+            # Formatted Download Filename with Timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            file_name = f"summarization_results_{timestamp}.txt"
+            
+            st.download_button(
+                label="Download Full Results (.txt)",
+                data=results_text,
+                file_name=file_name,
+                mime="text/plain"
+            )
